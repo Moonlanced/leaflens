@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LeafLens — sign in</title>
+<link rel="stylesheet" href="/assets/styles.css">
+<style>
+  body{display:grid;place-items:center;min-height:100%}
+  .wrap{width:min(92vw,400px)}
+  .hero{text-align:center;margin-bottom:22px}
+  .hero h1{font-size:24px;margin:14px 0 4px}
+  .hero p{color:var(--ink-2);margin:0}
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
+  .tabs{display:flex;gap:4px;margin-bottom:16px;background:var(--surface-2);padding:4px;border-radius:10px}
+  .tabs button{flex:1;padding:8px;border:none;background:transparent;color:var(--ink-2);border-radius:7px;font-weight:550}
+  .tabs button.on{background:var(--surface-3);color:var(--ink)}
+  .logo-lg{width:46px;height:46px;border-radius:12px;background:linear-gradient(135deg,var(--s1),var(--s7));display:inline-grid;place-items:center;font-size:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <div class="logo-lg">📖</div>
+    <h1>LeafLens</h1>
+    <p>Reading analytics for PDF publications</p>
+  </div>
+  <div class="card">
+    <div class="tabs">
+      <button id="tabLogin" class="on">Sign in</button>
+      <button id="tabSignup">Create account</button>
+    </div>
+    <div class="err" id="err"></div>
+    <form id="form">
+      <div class="field"><label>Email</label><input id="email" type="email" autocomplete="email" required></div>
+      <div class="field"><label>Password</label><input id="password" type="password" autocomplete="current-password" required></div>
+      <button class="btn primary" style="width:100%;justify-content:center" id="submit" type="submit">Sign in</button>
+    </form>
+    <p id="signupNote" style="color:var(--muted);font-size:12px;margin:12px 0 0;display:none">New here? Create an account to upload your first PDF.</p>
+  </div>
+</div>
+<script type="module">
+const $=s=>document.querySelector(s);
+let mode='login';
+fetch('/api/me').then(r=>r.json()).then(d=>{
+  if(d.email) location.href='/dashboard';
+  if(!d.signup){ $('#tabSignup').style.display='none'; }
+});
+function setMode(m){ mode=m;
+  $('#tabLogin').classList.toggle('on',m==='login');
+  $('#tabSignup').classList.toggle('on',m==='signup');
+  $('#submit').textContent=m==='login'?'Sign in':'Create account';
+  $('#password').autocomplete=m==='login'?'current-password':'new-password';
+  $('#err').classList.remove('show');
+}
+$('#tabLogin').onclick=()=>setMode('login');
+$('#tabSignup').onclick=()=>setMode('signup');
+$('#form').addEventListener('submit',async e=>{
+  e.preventDefault(); $('#err').classList.remove('show');
+  const email=$('#email').value.trim(), password=$('#password').value;
+  const res=await fetch('/api/auth/'+(mode==='login'?'login':'signup'),{
+    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+  const d=await res.json().catch(()=>({}));
+  if(res.ok){ location.href='/dashboard'; }
+  else { const msg={bad_credentials:'Wrong email or password.',email_taken:'That email is already registered.',
+    weak_password:'Password must be at least 8 characters.',invalid_email:'Enter a valid email.',
+    signup_disabled:'Sign-ups are closed on this server.'}[d.error]||d.message||'Something went wrong.';
+    $('#err').textContent=msg; $('#err').classList.add('show'); }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "name": "leaflens",
+  "version": "1.0.0",
+  "description": "Self-hosted PDF reading-analytics platform — upload a PDF, share a flipbook reader, see where attention goes and what gets clicked.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": { "node": ">=20" },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^11.3.0",
+    "cookie-parser": "^1.4.6",
+    "express": "^4.21.0",
+    "multer": "^2.0.1"
+  }
+}

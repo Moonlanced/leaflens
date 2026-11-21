@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LeafLens — dashboard</title>
+<link rel="stylesheet" href="/assets/styles.css">
+<style>
+  html,body{overflow:hidden}
+  .app{display:flex;flex-direction:column;height:100%}
+  .topbar{display:flex;align-items:center;gap:14px;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface);flex:0 0 auto}
+  .spacer{flex:1}
+  .who{color:var(--muted);font-size:12.5px}
+  .body{flex:1;min-height:0;display:flex}
+  .side{width:260px;flex:0 0 auto;border-right:1px solid var(--border);background:var(--surface);overflow:auto;display:flex;flex-direction:column}
+  .side .head{padding:12px 14px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+  .side .head h3{margin:0;font-size:13px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+  .publist{padding:8px;overflow:auto}
+  .pubrow{padding:10px 11px;border-radius:9px;cursor:pointer;border:1px solid transparent}
+  .pubrow:hover{background:var(--surface-2)}
+  .pubrow.active{background:var(--surface-3);border-color:var(--border)}
+  .pubrow .t{font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .pubrow .m{color:var(--muted);font-size:12px;margin-top:2px}
+  .main{flex:1;min-width:0;overflow:auto}
+  .wrap{max-width:1120px;margin:0 auto;padding:20px}
+
+  .detail-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+  .detail-head h2{margin:0;font-size:20px}
+  .sharebox{display:flex;align-items:center;gap:6px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:4px 4px 4px 12px}
+  .sharebox code{color:var(--ink-2);font-size:12.5px;max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .subtabs{display:flex;gap:3px;margin-bottom:16px;border-bottom:1px solid var(--border)}
+  .subtab{padding:9px 14px;border:none;background:transparent;color:var(--ink-2);border-bottom:2px solid transparent;font-weight:550}
+  .subtab.on{color:var(--ink);border-bottom-color:var(--s1)}
+
+  .filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}
+  .seg{display:flex;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+  .seg button{padding:6px 11px;background:var(--surface);border:none;color:var(--ink-2)}
+  .seg button.on{background:var(--surface-3);color:var(--ink)}
+
+  .kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px}
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 15px}
+  .kpi .lab{color:var(--muted);font-size:11.5px;text-transform:uppercase;letter-spacing:.5px}
+  .kpi .val{font-size:26px;font-weight:650;margin-top:4px;letter-spacing:-.5px}
+  .kpi .sub{font-size:12px;color:var(--ink-2);margin-top:2px}
+  .kpi .sub.up{color:var(--good)} .kpi .sub.down{color:var(--crit)}
+
+  .grid{display:grid;grid-template-columns:repeat(12,1fr);gap:14px}
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px 16px;min-width:0}
+  .panel h3{margin:0 0 2px;font-size:14.5px}
+  .panel .hint{color:var(--muted);font-size:12px;margin:0 0 12px}
+  .col-12{grid-column:span 12}.col-8{grid-column:span 8}.col-7{grid-column:span 7}.col-6{grid-column:span 6}.col-5{grid-column:span 5}.col-4{grid-column:span 4}
+  @media(max-width:900px){.col-8,.col-7,.col-6,.col-5,.col-4{grid-column:span 12}}
+
+  svg .ax{fill:var(--muted);font-size:10.5px;font-variant-numeric:tabular-nums}
+  svg .gl{stroke:var(--grid);stroke-width:1}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;color:var(--ink-2);font-size:12px;margin-top:8px}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .swatch{width:10px;height:10px;border-radius:3px;display:inline-block}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px;border-bottom:1px solid var(--grid)}
+  th{color:var(--muted);font-weight:550;font-size:11.5px;text-transform:uppercase;letter-spacing:.4px}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;padding:1px 8px;border-radius:20px;font-size:11.5px;background:var(--surface-3);color:var(--ink-2)}
+  .pill.spon{background:rgba(217,89,38,.18);color:#f0a584}
+  .bar-cell{position:relative}
+  .bar-cell .fill{position:absolute;left:0;top:50%;transform:translateY(-50%);height:60%;border-radius:4px;background:rgba(57,135,229,.25)}
+  .bar-cell span{position:relative}
+  .heat{display:grid;gap:4px}
+  .heat .cell{aspect-ratio:1;border-radius:5px;display:grid;place-items:center;font-size:10px;color:rgba(255,255,255,.85);border:1px solid rgba(255,255,255,.04)}
+  .insight{display:flex;gap:10px;align-items:flex-start;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius-s);padding:11px 13px;margin-top:8px}
+  .insight .k{font-size:17px}.insight p{margin:0;color:var(--ink-2);font-size:13px}.insight b{color:var(--ink)}
+  .spon-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin-bottom:16px}
+  .spon-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:15px;position:relative;overflow:hidden}
+  .spon-card .accent{position:absolute;left:0;top:0;bottom:0;width:4px}
+  .spon-card h4{margin:0 0 2px;font-size:15px}.spon-card .dom{color:var(--muted);font-size:12px;margin-bottom:12px;word-break:break-all}
+  .metricrow{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--grid);font-size:13px}
+  .metricrow:last-child{border:none}.metricrow .v{font-weight:600;font-variant-numeric:tabular-nums}
+  pre.code{background:#0a0a0a;border:1px solid var(--border);border-radius:var(--radius-s);padding:14px;overflow:auto;font-size:12.5px;line-height:1.55;color:#cfe3ff;white-space:pre-wrap;word-break:break-word}
+
+  .empty{display:grid;place-items:center;height:100%;text-align:center;padding:24px}
+  .empty .inner{max-width:420px}
+  .modal{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;place-items:center;z-index:100}
+  .modal.show{display:grid}
+  .modal .box{width:min(94vw,460px);background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:22px}
+  .modal h3{margin:0 0 14px}
+  .drop{border:1.5px dashed var(--border);border-radius:10px;padding:20px;text-align:center;color:var(--ink-2);cursor:pointer}
+  .drop.over{border-color:var(--s1);background:var(--surface-2)}
+  .progress{height:6px;background:var(--surface-3);border-radius:4px;overflow:hidden;margin-top:12px;display:none}
+  .progress.show{display:block}.progress i{display:block;height:100%;width:0;background:var(--s1);transition:width .2s}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand"><span class="logo">📖</span><span>LeafLens <small>dashboard</small></span></div>
+    <div class="spacer"></div>
+    <span class="who" id="who"></span>
+    <button class="btn primary" id="newBtn">＋ New publication</button>
+    <button class="btn ghost" id="logout">Sign out</button>
+  </div>
+  <div class="body">
+    <div class="side">
+      <div class="head"><h3>Publications</h3><span class="who" id="pubCount"></span></div>
+      <div class="publist" id="publist"></div>
+    </div>
+    <div class="main" id="main">
+      <div class="empty" id="emptyMain"><div class="inner">
+        <h2>No publication selected</h2>
+        <p style="color:var(--ink-2)">Upload a PDF to get a shareable reader link and start collecting reading analytics.</p>
+        <button class="btn primary" id="newBtn2">Upload your first PDF</button>
+      </div></div>
+      <div class="wrap" id="detail" style="display:none"></div>
+    </div>
+  </div>
+</div>
+
+<!-- upload modal -->
+<div class="modal" id="modal">
+  <div class="box">
+    <h3>New publication</h3>
+    <div class="err" id="upErr"></div>
+    <div class="field"><label>Title</label><input id="upTitle" placeholder="Spring Catalogue 2026"></div>
+    <label class="switch" style="margin:4px 0 12px"><div class="toggle on" id="upDouble"><i></i></div>
+      <span>Double-page spreads (like a magazine)</span></label>
+    <div class="drop" id="upDrop">
+      <div id="upDropTxt">Drop a PDF here, or click to choose</div>
+      <input type="file" id="upFile" accept="application/pdf" hidden>
+    </div>
+    <div class="progress" id="upProg"><i></i></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">
+      <button class="btn ghost" id="upCancel">Cancel</button>
+      <button class="btn primary" id="upGo" disabled>Upload &amp; publish</button>
+    </div>
+  </div>
+</div>
+
+<div class="tooltip" id="tt"></div>
+<div class="toast" id="toast"></div>
+<script type="module" src="/assets/dashboard.js"></script>
+</body>
+</html>
