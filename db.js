@@ -31,10 +31,13 @@ CREATE TABLE IF NOT EXISTS pubs (
   slug        TEXT UNIQUE NOT NULL,
   user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   title       TEXT NOT NULL,
-  file        TEXT NOT NULL,          -- stored filename under uploads/
+  file        TEXT NOT NULL DEFAULT '',   -- stored filename under uploads/ (upload mode)
   num_pages   INTEGER NOT NULL DEFAULT 0,
   aspect      REAL NOT NULL DEFAULT 1.414,
   double_page INTEGER NOT NULL DEFAULT 1,
+  source      TEXT NOT NULL DEFAULT 'upload',  -- 'upload' | 'url'
+  source_url  TEXT,                            -- remote PDF URL (url mode)
+  fetched_at  INTEGER NOT NULL DEFAULT 0,      -- ms epoch of last proxy cache refresh
   created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -77,6 +80,13 @@ CREATE INDEX IF NOT EXISTS idx_ev_pub_type ON events(pub_id, type);
 CREATE INDEX IF NOT EXISTS idx_ev_pub_page ON events(pub_id, page);
 `);
 
+// ---- idempotent migrations (for databases created before url-source mode) ----
+for (const stmt of [
+  `ALTER TABLE pubs ADD COLUMN source TEXT NOT NULL DEFAULT 'upload'`,
+  `ALTER TABLE pubs ADD COLUMN source_url TEXT`,
+  `ALTER TABLE pubs ADD COLUMN fetched_at INTEGER NOT NULL DEFAULT 0`,
+]) { try { db.exec(stmt); } catch { /* column already exists */ } }
+
 // ---- prepared statements ----
 export const Q = {
   createUser: db.prepare(`INSERT INTO users (id,email,pass_hash) VALUES (?,?,?)`),
@@ -89,10 +99,12 @@ export const Q = {
   deleteSession: db.prepare(`DELETE FROM auth_sessions WHERE token=?`),
 
   createPub: db.prepare(
-    `INSERT INTO pubs (id,slug,user_id,title,file,num_pages,aspect,double_page)
-     VALUES (@id,@slug,@user_id,@title,@file,@num_pages,@aspect,@double_page)`),
+    `INSERT INTO pubs (id,slug,user_id,title,file,num_pages,aspect,double_page,source,source_url)
+     VALUES (@id,@slug,@user_id,@title,@file,@num_pages,@aspect,@double_page,@source,@source_url)`),
   pubBySlug: db.prepare(`SELECT * FROM pubs WHERE slug=?`),
   pubsByUser: db.prepare(`SELECT * FROM pubs WHERE user_id=? ORDER BY created_at DESC`),
+  updatePubMeta: db.prepare(`UPDATE pubs SET num_pages=@num_pages, aspect=@aspect WHERE id=@id`),
+  setFetched: db.prepare(`UPDATE pubs SET fetched_at=@t WHERE id=@id`),
   deletePub: db.prepare(`DELETE FROM pubs WHERE id=?`),
 
   clearLinks: db.prepare(`DELETE FROM links WHERE pub_id=?`),

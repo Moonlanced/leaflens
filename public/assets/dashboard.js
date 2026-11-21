@@ -25,7 +25,7 @@ async function loadPubs(){
   else list.innerHTML = D.pubs.map(p=>`
     <div class="pubrow${D.sel===p.slug?' active':''}" data-slug="${p.slug}">
       <div class="t">${esc(p.title)}</div>
-      <div class="m">${p.numPages} pages · ${fmt(p.sessions)} sessions</div>
+      <div class="m">${p.numPages} pages · ${fmt(p.sessions)} sessions${p.source==='url'?' · ⇄ URL':''}</div>
     </div>`).join('');
   $$('.pubrow').forEach(r=>r.onclick=()=>selectPub(r.dataset.slug));
   if(D.sel && !D.pubs.find(p=>p.slug===D.sel)) D.sel=null;
@@ -50,11 +50,13 @@ function renderDetail(){
   $('#detail').innerHTML = `
     <div class="detail-head">
       <h2>${esc(p.title)}</h2>
+      ${p.source==='url'?`<span class="pill" title="PDF pulled from ${esc(p.sourceUrl)}">⇄ ${esc(dom(p.sourceUrl))}</span>`:''}
       <div class="sharebox"><code>${url}</code>
         <button class="btn" id="copyShare">Copy</button>
         <a class="btn" href="${url}" target="_blank" rel="noopener">Open reader ↗</a>
       </div>
       <div class="spacer" style="flex:1"></div>
+      ${p.source==='url'?`<button class="btn" id="resync" title="Re-pull the file from ${esc(p.sourceUrl)}">↻ Re-sync</button>`:''}
       <button class="btn danger" id="delPub">Delete</button>
     </div>
     <div class="subtabs">
@@ -65,6 +67,9 @@ function renderDetail(){
     <div id="tabbody"></div>`;
   $('#copyShare').onclick=()=>copy(url);
   $('#delPub').onclick=()=>delPub();
+  const rs=$('#resync'); if(rs) rs.onclick=async()=>{ rs.disabled=true;
+    const r=await fetch(`/api/pubs/${D.sel}/resync`,{method:'POST'});
+    rs.disabled=false; toast(r.ok?'Will re-pull from source on next open':'Re-sync failed'); };
   $$('.subtab').forEach(b=>b.onclick=()=>{ D.tab=b.dataset.tab; renderDetail(); });
   if(D.tab==='analytics') renderAnalytics();
   if(D.tab==='sponsors') renderSponsors();
@@ -295,54 +300,77 @@ function exportSponsors(){
 }
 
 /* ---------- upload ---------- */
-let upFile=null;
+let upFile=null, upMode='upload';
 $('#newBtn').onclick=$('#newBtn2').onclick=()=>openModal();
 $('#upCancel').onclick=closeModal;
 $('#modal').addEventListener('click',e=>{ if(e.target.id==='modal') closeModal(); });
+$('#upMode').addEventListener('click',e=>{ const b=e.target.closest('button'); if(!b)return;
+  upMode=b.dataset.mode; $$('#upMode button').forEach(x=>x.classList.toggle('on',x===b));
+  $('#upDrop').style.display=upMode==='upload'?'':'none';
+  $('#upUrlWrap').style.display=upMode==='url'?'':'none'; updateGo(); });
+$('#upUrl').addEventListener('input',()=>{ if(!$('#upTitle').value){ const m=($('#upUrl').value.split('/').pop()||''); $('#upTitle').value=m.replace(/\.pdf$/i,''); } updateGo(); });
 $('#upDrop').onclick=()=>$('#upFile').click();
 $('#upFile').onchange=e=>setFile(e.target.files[0]);
 ['dragover','dragenter'].forEach(ev=>$('#upDrop').addEventListener(ev,e=>{e.preventDefault();$('#upDrop').classList.add('over');}));
 ['dragleave','drop'].forEach(ev=>$('#upDrop').addEventListener(ev,e=>{e.preventDefault();$('#upDrop').classList.remove('over');}));
 $('#upDrop').addEventListener('drop',e=>{ const f=e.dataTransfer.files[0]; if(f) setFile(f); });
-function openModal(){ upFile=null; $('#upTitle').value=''; $('#upDropTxt').textContent='Drop a PDF here, or click to choose';
-  $('#upGo').disabled=true; $('#upErr').classList.remove('show'); $('#upProg').classList.remove('show'); $('#modal').classList.add('show'); }
+function openModal(){ upFile=null; upMode='upload'; $('#upTitle').value=''; $('#upUrl').value='';
+  $$('#upMode button').forEach(x=>x.classList.toggle('on',x.dataset.mode==='upload'));
+  $('#upDrop').style.display=''; $('#upUrlWrap').style.display='none';
+  $('#upDropTxt').textContent='Drop a PDF here, or click to choose';
+  $('#upErr').classList.remove('show'); $('#upProg').classList.remove('show'); updateGo(); $('#modal').classList.add('show'); }
 function closeModal(){ $('#modal').classList.remove('show'); }
 function setFile(f){ if(!f) return;
   if(f.type!=='application/pdf'&&!f.name.toLowerCase().endsWith('.pdf')){ upErr('That is not a PDF.'); return; }
-  upFile=f; $('#upDropTxt').textContent='📄 '+f.name; $('#upGo').disabled=false;
-  if(!$('#upTitle').value) $('#upTitle').value=f.name.replace(/\.pdf$/i,''); }
+  upFile=f; $('#upDropTxt').textContent='📄 '+f.name;
+  if(!$('#upTitle').value) $('#upTitle').value=f.name.replace(/\.pdf$/i,''); updateGo(); }
+function updateGo(){ $('#upGo').disabled = upMode==='upload' ? !upFile : !/^https?:\/\/.+/i.test($('#upUrl').value.trim()); }
 function upErr(m){ $('#upErr').textContent=m; $('#upErr').classList.add('show'); }
 
 $('#upGo').onclick=async()=>{
-  if(!upFile) return;
   $('#upGo').disabled=true; $('#upErr').classList.remove('show');
-  const prog=$('#upProg'); prog.classList.add('show'); const bar=prog.querySelector('i');
+  const prog=$('#upProg'); prog.classList.add('show'); const bar=prog.querySelector('i'); bar.style.width='10%';
+  const title=$('#upTitle').value.trim()||'Untitled';
+  const doublePage=$('#upDouble').classList.contains('on');
   try{
-    bar.style.width='15%';
-    // parse client-side for page count, aspect, and link annotations
-    const pdfjs=await import(`${CDN}/pdf.min.mjs`);
-    pdfjs.GlobalWorkerOptions.workerSrc=`${CDN}/pdf.worker.min.mjs`;
-    const buf=await upFile.arrayBuffer();
-    const doc=await pdfjs.getDocument({data:buf.slice(0)}).promise;
-    const numPages=doc.numPages;
-    const p1=await doc.getPage(1); const vp=p1.getViewport({scale:1}); const aspect=vp.height/vp.width;
-    bar.style.width='40%';
-    const links=await extractLinks(doc);
-    bar.style.width='55%';
-    // upload file
-    const fd=new FormData(); fd.append('file',upFile); fd.append('title',$('#upTitle').value.trim()||'Untitled');
-    fd.append('numPages',numPages); fd.append('aspect',aspect.toFixed(4));
-    fd.append('doublePage',$('#upDouble').classList.contains('on')?'true':'false');
-    const res=await fetch('/api/pubs',{method:'POST',body:fd});
-    const d=await res.json(); if(!res.ok) throw new Error(d.message||d.error||'upload failed');
-    bar.style.width='80%';
-    // send links
-    await fetch(`/api/pubs/${d.slug}/links`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({links})});
+    let slug, meta;
+    if(upMode==='upload'){
+      const buf=await upFile.arrayBuffer();
+      bar.style.width='35%';
+      meta=await parsePdf(buf.slice(0));
+      const fd=new FormData(); fd.append('file',upFile); fd.append('title',title);
+      fd.append('numPages',meta.numPages); fd.append('aspect',meta.aspect.toFixed(4));
+      fd.append('doublePage',doublePage?'true':'false');
+      const res=await fetch('/api/pubs',{method:'POST',body:fd});
+      const d=await res.json(); if(!res.ok) throw new Error(d.message||d.error||'upload failed');
+      slug=d.slug;
+    }else{
+      const sourceUrl=$('#upUrl').value.trim();
+      bar.style.width='25%';
+      // server pulls + verifies the PDF (SSRF-guarded); fails loudly if it can't
+      const res=await fetch('/api/pubs',{method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({sourceUrl,title,doublePage})});
+      const d=await res.json(); if(!res.ok) throw new Error(d.message||d.error||'could not add that URL');
+      slug=d.slug; bar.style.width='55%';
+      // fetch the proxied bytes same-origin (no CORS) to read pages + links
+      const buf=await (await fetch(`/files/${slug}.pdf`)).arrayBuffer();
+      meta=await parsePdf(buf);
+    }
+    bar.style.width='85%';
+    await fetch(`/api/pubs/${slug}/links`,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({links:meta.links,numPages:meta.numPages,aspect:meta.aspect})});
     bar.style.width='100%';
-    closeModal(); await loadPubs(); selectPub(d.slug);
-    toast('Published — '+numPages+' pages, '+links.length+' links detected');
-  }catch(e){ upErr('Could not process this PDF: '+(e.message||e)); $('#upGo').disabled=false; prog.classList.remove('show'); console.error(e); }
+    closeModal(); await loadPubs(); selectPub(slug);
+    toast((upMode==='url'?'Linked':'Published')+' — '+meta.numPages+' pages, '+meta.links.length+' links');
+  }catch(e){ upErr('Could not process this PDF: '+(e.message||e)); updateGo(); prog.classList.remove('show'); console.error(e); }
 };
+async function parsePdf(buf){
+  const pdfjs=await import(`${CDN}/pdf.min.mjs`);
+  pdfjs.GlobalWorkerOptions.workerSrc=`${CDN}/pdf.worker.min.mjs`;
+  const doc=await pdfjs.getDocument({data:buf}).promise;
+  const p1=await doc.getPage(1); const vp=p1.getViewport({scale:1});
+  return { numPages:doc.numPages, aspect:vp.height/vp.width, links:await extractLinks(doc) };
+}
 async function extractLinks(doc){
   const out=[], max=Math.min(doc.numPages,60);
   for(let p=1;p<=max;p++){ try{

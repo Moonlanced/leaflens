@@ -30,6 +30,27 @@ Per publication, aggregated across all readers (filterable by device):
 Reader features: real page-flip, cover + double-page spreads, single-page/mobile mode,
 zoom & pan, thumbnails, in-document search, swipe on touch.
 
+## Two ways to add a PDF
+
+When creating a publication you pick a **source mode** per PDF:
+
+- **Upload a copy** — the file is stored on the LeafLens server. Simplest; nothing to
+  configure.
+- **Link to a URL** — the file stays hosted on *your* domain (e.g.
+  `https://friend.com/magazines/january.pdf`) and LeafLens pulls it in. The server
+  fetches and proxies the bytes, so **you don't need to configure CORS** on your side,
+  and your domain stays the source of truth. Replaced the file? Hit **Re-sync** (or wait
+  for the cache TTL) and the new version is picked up.
+
+Either way, **analytics come from the LeafLens reader, not the raw file**. A bare
+`.pdf` link opened directly shows the browser's native viewer and tracks nothing — to
+collect data, readers must open the LeafLens reader link (or your page that embeds it
+via iframe; snippet is in the dashboard's Embed tab).
+
+URL mode is SSRF-guarded: it refuses URLs that resolve to private/internal addresses
+unless you explicitly set `ALLOW_PRIVATE_FETCH=true` (only safe on a trusted
+single-tenant install). Redirects are not followed — give the final URL.
+
 ---
 
 ## Architecture
@@ -87,7 +108,9 @@ Requires Node 20+.
 | `SESSION_SECRET` | — | **Required.** 16+ chars. App refuses to boot without it. |
 | `ALLOW_SIGNUP` | `true` | Set `false` after inviting people to lock down new accounts. |
 | `COOKIE_SECURE` | `false` | Set `true` when served over HTTPS, else the login cookie is dropped. |
-| `MAX_UPLOAD_MB` | `60` | Max PDF size. |
+| `MAX_UPLOAD_MB` | `60` | Max PDF size (uploads and URL-pulled files). |
+| `PDF_CACHE_TTL` | `600` | Seconds a URL-source PDF is cached before re-fetch. |
+| `ALLOW_PRIVATE_FETCH` | `false` | **Footgun.** `true` lets URL-source reach private IPs (LAN file servers). Disables the SSRF guard — never on a multi-user server. |
 | `PORT` | `8080` | |
 | `DATA_DIR` | `./data` | SQLite + uploads location. |
 

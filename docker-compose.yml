@@ -12,6 +12,9 @@ services:
       # Set to "true" when served over HTTPS (behind a TLS reverse proxy)
       COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       MAX_UPLOAD_MB: "${MAX_UPLOAD_MB:-60}"
+      # URL-source mode:
+      PDF_CACHE_TTL: "${PDF_CACHE_TTL:-600}"
+      ALLOW_PRIVATE_FETCH: "${ALLOW_PRIVATE_FETCH:-false}"
       PORT: "8080"
       DATA_DIR: "/data"
     volumes:

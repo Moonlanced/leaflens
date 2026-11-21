@@ -119,12 +119,21 @@
   <div class="box">
     <h3>New publication</h3>
     <div class="err" id="upErr"></div>
+    <div class="seg" id="upMode" style="margin-bottom:14px">
+      <button class="on" data-mode="upload" style="flex:1">Upload a copy</button>
+      <button data-mode="url" style="flex:1">Link to a URL</button>
+    </div>
     <div class="field"><label>Title</label><input id="upTitle" placeholder="Spring Catalogue 2026"></div>
     <label class="switch" style="margin:4px 0 12px"><div class="toggle on" id="upDouble"><i></i></div>
       <span>Double-page spreads (like a magazine)</span></label>
     <div class="drop" id="upDrop">
       <div id="upDropTxt">Drop a PDF here, or click to choose</div>
       <input type="file" id="upFile" accept="application/pdf" hidden>
+    </div>
+    <div class="field" id="upUrlWrap" style="display:none">
+      <label>PDF URL on your site</label>
+      <input id="upUrl" placeholder="https://friend.com/magazines/january.pdf">
+      <p class="hint" style="margin:6px 0 0">LeafLens pulls the file from here and proxies it to readers — no CORS setup needed on your side. The file stays hosted on your domain; re-sync any time you replace it.</p>
     </div>
     <div class="progress" id="upProg"><i></i></div>
     <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px">

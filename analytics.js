@@ -81,6 +81,7 @@ export function analytics(pub, dev = 'all') {
 
   return {
     title: pub.title, numPages: N, doublePage: !!pub.double_page,
+    source: pub.source, sourceUrl: pub.source_url,
     sessions: st.sessions.get(p).n,
     devices, referrers, hours,
     pageViews, dwellAvg, reReads, zooms: zoomArr,
